@@ -4,7 +4,7 @@ dataset_root: datasets/sorting_session_001
 task: Sort the object from the pickup cell into the matching tray
 fps: 30
 video: true
-lock_dir: /tmp/soarm-device-locks
+lock_dir: /tmp/soarm-station-device-locks
 units: {body: degree, gripper: percent}
 arms:
   - id: arm1

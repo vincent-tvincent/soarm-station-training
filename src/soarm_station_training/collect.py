@@ -9,7 +9,7 @@ import numpy as np
 import yaml
 
 class DeviceLock:
-    def __init__(self,identity,directory='/tmp/soarm-device-locks'):
+    def __init__(self,identity,directory='/tmp/soarm-station-device-locks'):
         Path(directory).mkdir(parents=True,exist_ok=True)
         name=hashlib.sha256(os.path.realpath(str(identity)).encode()).hexdigest()
         self.f=open(Path(directory)/name,'a+')
@@ -39,7 +39,7 @@ def collect(config,episodes,seconds,synthetic=False):
             # Acquire all physical locks before any connection/configuration.
             identities=[a['robot']['port'] for a in arms]+[a['teleop']['port'] for a in arms]+[str(x['device']) for x in cameras]
             if len(set(os.path.realpath(p) for p in identities))!=len(identities):raise ValueError('Duplicate physical device')
-            locks=[DeviceLock(p,c.get('lock_dir','/tmp/soarm-device-locks')) for p in identities]
+            locks=[DeviceLock(p,c.get('lock_dir','/tmp/soarm-station-device-locks')) for p in identities]
             for a in arms:
                 robot=native_robot(a['robot']);leader=native_robot(a['teleop'],True)
                 robots[a['id']]=robot;leaders[a['id']]=leader
@@ -57,7 +57,7 @@ def collect(config,episodes,seconds,synthetic=False):
             'shape':(camera.get('height',480),camera.get('width',640),3),'names':['height','width','channels']}
         root=Path(c['dataset_root']).expanduser()
         if root.exists():raise FileExistsError('Dataset destination exists; choose a new session path')
-        dataset=LeRobotDataset.create(repo_id=c['repo_id'],root=root,robot_type='soarm_multi',fps=fps,features=features,
+        dataset=LeRobotDataset.create(repo_id=c['repo_id'],root=root,robot_type='soarm_station_multi',fps=fps,features=features,
             use_videos=c.get('video',True),image_writer_threads=max(1,len(cameras)*2))
         provenance={'schema_version':1,'synthetic':synthetic,'resource_ids':ids,'native_features':names,'fps':fps,
             'units':c.get('units',{}),'arms':[{k:v for k,v in a.items() if k not in ('robot','teleop')} for a in arms],
