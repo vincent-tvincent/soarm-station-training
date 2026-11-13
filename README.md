@@ -1,8 +1,14 @@
-# SOARM LeRobot training
+# SOARM training
 
-Separate demonstration, dataset, experiment and training repository. Production ROS control lives in `../ros_system`; this repository does not add dataset buttons or a training-job service to production. No Git remote is configured and nothing has been pushed. Initial implementation was produced with Codex assistance.
+Tools for collecting robot demonstrations, reviewing and splitting datasets, training LeRobot policies, evaluating held-out actions, and exporting versioned policy bundles. The separate SOARM runtime repository handles ROS control and policy execution on the robot host.
 
-The Pi has a dedicated Python 3.12 `.venv`. `requirements.lock` freezes the tested Linux CPU environment, including LeRobot 0.7.0 / PyTorch 2.11.0+cpu. For substantial SmolVLA fitting, run this same repository/dataset on a suitable GPU Linux host; the Pi CPU smoke test does not establish useful VLA training throughput. `requirements-gpu.in` deliberately leaves the CUDA-specific PyTorch installation to the training host.
+Collection uses explicit arm/leader pairs and shared camera resources. SO-101 is the current hardware integration. Training can run on a different machine from collection and deployment.
+
+## Requirements and installation
+
+The bootstrap creates a Python 3.12 environment using the tested Linux CPU dependencies in `requirements.lock`, including LeRobot 0.7.0 and PyTorch 2.11.0+cpu. It requires network access and either an installed `uv` command or system Python with venv support to install `uv`.
+
+From a clone or extracted copy of this repository, run:
 
 ```bash
 scripts/bootstrap
@@ -10,54 +16,100 @@ source .venv/bin/activate
 soarm-training --help
 ```
 
-## Collection and review
+Use a suitable GPU host for substantial VLA training. The default bootstrap installs CPU PyTorch; `requirements-gpu.in` leaves the CUDA-specific PyTorch selection to the training environment. Device support and available memory must match the chosen policy and training configuration.
 
-Stop the production service and disable its automatic restart for the shared-hardware collection session. Use the same `/tmp/soarm-device-locks` convention on both repositories. The collector acquires every physical lock before opening devices. Each configured follower is paired explicitly with a leader; cameras are configured once outside the arms. Stock LeRobot robot/teleoperator configurations provide the first SO-101 adapter and extension points.
+## Quick start: synthetic pipeline
 
-Copy `config/collection.example.yaml` to ignored `local/collection.yaml`; configure actual ports, logical IDs, calibration directories, native units, task and a **new** dataset root. The example uses body degrees and separate gripper percent. Calibrate hardware separately; collection calls `connect(calibrate=False)` and preserves the configured native disconnect policy. Align leaders before recording. The native follower may configure motors when collection connects, so this is a supervised collection workflow, not read-only monitoring.
-
-```bash
-soarm-training record --config local/collection.yaml --episodes 50 --seconds 30
-soarm-training audit datasets/sorting_session_001
-lerobot-dataset-viz --repo-id local/sorting --root datasets/sorting_session_001 --episode-index 0
-soarm-training split datasets/sorting_session_001 --output local/sorting_split.json
-```
-
-Episode boundaries are operator-confirmed. Source observations and sent actions are different fields; sent actions are not proof of applied movement or task success. Recording never pushes to a Hub. Review demonstrations and retain only supportable task labels. `audit` checks named vector schemas, completed episodes, FPS and finite values; a deterministic episode-level split avoids adjacent-frame leakage. Preserve the split file when rerunning experiments.
-
-## VLA fitting and evaluation
-
-`config/smolvla.yaml` fine-tunes the public SmolVLA base through stock `lerobot-train`. Set the dataset repo ID, output directory, batch size/steps and compute device for the selected host. `auto` chooses available CUDA/MPS/CPU. Trackio and Hub pushes are disabled in generated commands.
+This example requires no robot hardware. Run it in a fresh checkout or choose new dataset/output paths if the fixture already exists:
 
 ```bash
-soarm-training train --config config/smolvla.yaml --split local/sorting_split.json --dry-run
-soarm-training train --config config/smolvla.yaml --split local/sorting_split.json
-soarm-training train --config config/smolvla.yaml --split local/sorting_split.json --resume
-soarm-training evaluate --checkpoint outputs/smolvla_sorting_v1/checkpoints/last/pretrained_model \
-  --root datasets/sorting_session_001 --repo-id local/sorting --split local/sorting_split.json \
-  --output local/held_out_evaluation.json --device cuda
-```
-
-Offline evaluation reports held-out action MSE and explicitly labels physical task outcome untested. Evaluate manipulation success separately in production using the correct resource/profile mappings. The deployment currently executes independent single-arm profiles; collecting multiple arms does not automatically enable coordinated bimanual deployment.
-
-## Immutable production export
-
-Fill `config/export.example.yaml` with the checkpoint's exact feature names/order, units, camera/resource mapping, trained action FPS, language support and calibration revision. Checkpoint dimensions alone do not establish compatibility.
-
-```bash
-soarm-training export --checkpoint outputs/smolvla_sorting_v1/checkpoints/last/pretrained_model \
-  --profile local/export.yaml --evaluation local/held_out_evaluation.json \
-  --destination exports/sorting_v1
-```
-
-Exports refuse to overwrite an existing version. They copy the complete pretrained directory, including saved processor configuration/state, then hash every artifact into `manifest.json`. Production verifies hashes and profile mappings before use. Preserve any policy-specific tokenizer/backbone assets needed for offline loading; verify the chosen VLA bundle on the destination host before physical deployment. A training dataset or ROS bag is not an executable policy bundle.
-
-## Reproduced integration fixture
-
-```bash
-soarm-training record --config config/synthetic.yaml --episodes 3 --seconds 1 --synthetic
+soarm-training record --config config/synthetic.yaml \
+  --episodes 3 --seconds 1 --synthetic
 soarm-training split local/synthetic_smoke --output local/synthetic_split.json
 soarm-training train --config config/act_smoke.yaml --split local/synthetic_split.json
 ```
 
-This fixture completed on the Pi: three five-frame image episodes, two ACT optimization steps, checkpoint save, held-out action evaluation, immutable export, local runtime inference and native Zenoh inference. It demonstrates software integration, not a trained manipulation skill. SmolVLA command generation is checked; a useful VLA has not been fitted because no real task dataset was collected in this installation.
+The fixture generates three image episodes and runs two ACT optimization steps. It checks software integration and checkpoint generation; it does not train a manipulation skill.
+
+## Collect demonstrations
+
+Copy the collection example and configure it for the collection host:
+
+```bash
+mkdir -p local
+cp config/collection.example.yaml local/collection.yaml
+```
+
+Set a new dataset root, task description, stable device paths, logical resource IDs and calibration directories. Each follower is paired explicitly with a leader. Cameras are defined once and shared across observations. The example uses body angles in degrees and gripper position in percent.
+
+Stop any runtime or other process owning those devices before collection. Runtime and collection use the same physical-device locks under `/tmp/soarm-device-locks`; use the same lock directory when customizing either application. If a service owns the devices, stop it for the collection session.
+
+Collection connects with `calibrate=False`, so calibration must already exist. Align leaders before recording. Native LeRobot connections can configure motors; the configured disconnect policy determines whether torque is retained. The example retains follower torque on disconnect.
+
+```bash
+soarm-training record --config local/collection.yaml --episodes 50 --seconds 30
+soarm-training audit datasets/sorting_session_001
+lerobot-dataset-viz --repo-id local/sorting \
+  --root datasets/sorting_session_001 --episode-index 0
+soarm-training split datasets/sorting_session_001 --output local/sorting_split.json
+```
+
+Episode boundaries are operator-confirmed. Review demonstrations and task labels before training. `audit` checks named vector schemas, completed episodes, FPS and finite values. The deterministic episode-level split avoids adjacent-frame leakage; preserve the split file for reproducible experiments. Recording does not upload datasets to the Hub.
+
+## Train and evaluate a VLA
+
+Create a local copy of the training configuration:
+
+```bash
+cp config/smolvla.yaml local/smolvla.yaml
+```
+
+Set the dataset repo ID, output directory, batch size, step count and compute device. The configuration fine-tunes the public SmolVLA base through `lerobot-train`. `auto` selects an available CUDA, MPS or CPU device; the environment must provide a compatible PyTorch build. Trackio and Hub pushes are disabled in generated commands.
+
+```bash
+soarm-training train --config local/smolvla.yaml \
+  --split local/sorting_split.json --dry-run
+soarm-training train --config local/smolvla.yaml --split local/sorting_split.json
+soarm-training train --config local/smolvla.yaml \
+  --split local/sorting_split.json --resume
+soarm-training evaluate \
+  --checkpoint outputs/smolvla_sorting_v1/checkpoints/last/pretrained_model \
+  --root datasets/sorting_session_001 --repo-id local/sorting \
+  --split local/sorting_split.json --output local/held_out_evaluation.json --device cuda
+```
+
+The checkpoint path above matches the example output directory. Adjust it after changing `output_dir`. Offline evaluation reports held-out action MSE. Measure physical task success separately on the deployment system; action error alone does not establish manipulation success. Multi-arm collection does not imply coordinated multi-arm runtime support.
+
+## Export a policy bundle
+
+```bash
+cp config/export.example.yaml local/export.yaml
+```
+
+Fill in the checkpoint's exact state/action feature names and order, units, camera/resource mappings, action FPS, language support and calibration revision. Checkpoint dimensions alone do not establish runtime compatibility.
+
+```bash
+soarm-training export \
+  --checkpoint outputs/smolvla_sorting_v1/checkpoints/last/pretrained_model \
+  --profile local/export.yaml --evaluation local/held_out_evaluation.json \
+  --destination exports/sorting_v1
+```
+
+Export copies the complete pretrained directory, including saved processors, and hashes the artifacts in `manifest.json`. It refuses to overwrite an existing export version. Retain policy-specific tokenizer/backbone assets required for offline loading. Register the bundle as a named profile in the runtime and verify it on the target host before evaluating physical behavior.
+
+## Repository layout and tests
+
+| Path | Purpose |
+| --- | --- |
+| `src/soarm_training/` | Collection, dataset, training, evaluation and export implementation. |
+| `config/` | Collection, synthetic, training and export examples. |
+| `scripts/bootstrap` | CPU development-environment setup. |
+| `tests/` | Pipeline checks. |
+| `local/` | Ignored host configuration and synthetic fixtures. |
+| `datasets/`, `outputs/`, `exports/` | Generated datasets, training runs and deployment bundles. |
+
+```bash
+.venv/bin/python -m pytest -q tests
+```
+
+Synthetic ACT collection, checkpoint save, held-out evaluation, export and runtime inference have been exercised. Useful SmolVLA fitting and physical task performance require a real dataset and separate evaluation; neither follows from the synthetic fixture.
