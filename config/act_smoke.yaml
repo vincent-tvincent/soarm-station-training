@@ -1,0 +1,24 @@
+dataset: {repo_id: local/synthetic_smoke}
+policy:
+  type: act
+  device: cpu
+  push_to_hub: false
+  chunk_size: 4
+  n_action_steps: 4
+  dim_model: 32
+  n_heads: 4
+  dim_feedforward: 64
+  n_encoder_layers: 1
+  n_decoder_layers: 1
+  n_vae_encoder_layers: 1
+  latent_dim: 8
+  pretrained_backbone_weights: null
+output_dir: outputs/act_smoke
+job_name: synthetic_smoke
+batch_size: 2
+steps: 2
+save_freq: 2
+log_freq: 1
+num_workers: 0
+seed: 42
+trackio: {enable: false}

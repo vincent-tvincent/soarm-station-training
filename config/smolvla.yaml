@@ -1,0 +1,16 @@
+dataset:
+  repo_id: local/sorting
+policy:
+  type: smolvla
+  pretrained_path: lerobot/smolvla_base
+  device: auto
+  push_to_hub: false
+output_dir: outputs/smolvla_sorting_v1
+job_name: sorting_smolvla
+batch_size: 8
+steps: 20000
+save_freq: 2000
+log_freq: 100
+num_workers: 2
+seed: 42
+trackio: {enable: false}

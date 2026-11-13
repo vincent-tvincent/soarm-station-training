@@ -1,0 +1,14 @@
+schema_version: 1
+repo_id: local/sorting
+dataset_root: datasets/sorting_session_001
+task: Sort the object from the pickup cell into the matching tray
+fps: 30
+video: true
+lock_dir: /tmp/soarm-device-locks
+units: {body: degree, gripper: percent}
+arms:
+  - id: arm1
+    robot: {type: so101_follower, port: /dev/serial/by-id/REPLACE_FOLLOWER, id: follower, use_degrees: true, disable_torque_on_disconnect: false}
+    teleop: {type: so101_leader, port: /dev/serial/by-id/REPLACE_LEADER, id: leader, use_degrees: true}
+cameras:
+  - {id: forward, device: /dev/v4l/by-path/REPLACE_CAMERA, width: 640, height: 480}

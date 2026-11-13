@@ -1,0 +1,21 @@
+schema_version: 1
+profile_id: sorting_v1
+arm_id: arm1
+calibration_revision: REPLACE_WITH_VERIFIED_CALIBRATION_HASH
+language_conditioned: true
+action_fps: 30
+cameras: {observation.images.forward: forward}
+state_features:
+  - {name: arm1/shoulder_pan.pos, joint: shoulder_pan, unit: degree}
+  - {name: arm1/shoulder_lift.pos, joint: shoulder_lift, unit: degree}
+  - {name: arm1/elbow_flex.pos, joint: elbow_flex, unit: degree}
+  - {name: arm1/wrist_flex.pos, joint: wrist_flex, unit: degree}
+  - {name: arm1/wrist_roll.pos, joint: wrist_roll, unit: degree}
+  - {name: arm1/gripper.pos, joint: gripper, unit: percent}
+action_features:
+  - {name: arm1/shoulder_pan.pos, joint: shoulder_pan, unit: degree}
+  - {name: arm1/shoulder_lift.pos, joint: shoulder_lift, unit: degree}
+  - {name: arm1/elbow_flex.pos, joint: elbow_flex, unit: degree}
+  - {name: arm1/wrist_flex.pos, joint: wrist_flex, unit: degree}
+  - {name: arm1/wrist_roll.pos, joint: wrist_roll, unit: degree}
+  - {name: arm1/gripper.pos, joint: gripper, unit: percent}

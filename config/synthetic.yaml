@@ -1,0 +1,11 @@
+schema_version: 1
+repo_id: local/synthetic_smoke
+dataset_root: local/synthetic_smoke
+task: Synthetic integration fixture
+fps: 5
+video: false
+arms:
+  - id: arm1
+    features: [shoulder_pan.pos, shoulder_lift.pos, elbow_flex.pos, wrist_flex.pos, wrist_roll.pos, gripper.pos]
+cameras:
+  - {id: forward, width: 64, height: 64}

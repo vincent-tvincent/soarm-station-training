@@ -1,0 +1,4 @@
+# Install the GPU host's supported torch/torchvision CUDA build first.
+lerobot[training,smolvla,serial-motors,core_scripts]==0.7.0
+PyYAML==6.0.3
+pytest>=8,<10
